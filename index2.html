@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作日誌</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 10px;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        h2, h3 {
+            color: #444;
+        }
+        input, button, textarea {
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+        }
+		#workContent {
+			width: 100%;      /* 讓它撐滿容器 */
+			max-width: 600px; /* 限制最大寬度，避免過長 */
+			min-height: 10px; /* 適當高度，方便輸入 */
+			padding: 8px;
+			font-size: 16px;
+		}
+
+        button {
+            cursor: pointer;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            font-size: 16px;
+            border-radius: 8px;
+            transition: 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #f1f1f1;
+        }
+        .section h3 {
+            margin-top: 0;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #007BFF;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📅 JIMMY的工作日誌</h2>
+
+    
+
+    <!-- 📝 新增日誌 -->
+    <div class="section">
+        <h3>📝 新增日誌</h3>
+        <label>日期: <input type="date" id="date"></label><br>
+		<label>工作內容:</label><br>
+		<textarea id="workContent" rows="1" style="width: 100%; max-width: 300px;"></textarea><br>
+        <label>標籤: <input type="text" id="tags" placeholder="#開發 #會議"></label><br>
+        <button onclick="saveEntry()">💾 儲存</button>
+    </div>
+	<!-- 🔍 篩選區 -->
+    <!--<div class="section">
+        <h3>🔍 篩選日誌</h3>
+        <label>選擇日期: <input type="date" id="searchDate" onchange="filterEntries()"></label>
+        <label>標籤: <input type="text" id="searchTag" oninput="filterEntries()" placeholder="輸入標籤 #tag"></label>
+    </div>-->
+    <!-- 📜 日誌紀錄 -->
+    <div class="section">
+        <h3>📜 日誌紀錄</h3>
+		<label>選擇日期: <input type="date" id="searchDate" onchange="filterEntries()"></label>
+        <label>標籤: <input type="text" id="searchTag" oninput="filterEntries()" placeholder="輸入標籤 #tag"></label>
+        <table>
+            <thead>
+                <tr><th>日期</th><th>工作內容</th><th>標籤</th><th>操作</th></tr>
+            </thead>
+            <tbody id="logTable"></tbody>
+        </table>
+    </div>
+
+    <!-- 📊 匯出 / 週報 -->
+    <div class="section">
+        <h3>📂 匯出</h3>
+        <div class="btn-group">
+            <button onclick="exportCSV()">📂 匯出 CSV</button>
+            <button onclick="exportJSON()">📤 匯出 JSON</button>
+            <button onclick="importJSON()">📥 載入 JSON</button>
+            <input type="file" id="fileInput" style="display:none" onchange="handleFileImport(event)">
+        </div>
+    </div>
+	<!-- 📊 週報區塊 -->
+	<div class="section">
+		<h3>📊 週報</h3>
+		<label>起始日期: <input type="date" id="startDate"></label>
+		<label>結束日期: <input type="date" id="endDate"></label>
+		<button onclick="generateWeeklyReport()">📊 生成週報</button>
+		<button onclick="closeWeeklyReport()">❌ 關閉週報</button>
+		<div id="weeklyReport" style="margin-top:10px; display: none;"></div>
+	</div>
+</div>
+
+<script>
+    function setDateToToday() {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById("date").value = today;
+        document.getElementById("searchDate").value = today;
+    }
+
+   
+	function saveEntry() {
+		const date = document.getElementById("date").value;
+		const content = document.getElementById("workContent").value;
+		const tags = document.getElementById("tags").value;
+		
+		if (!date || !content.trim()) {
+			return alert("請輸入日期與工作內容！");
+		}
+
+		const logs = JSON.parse(localStorage.getItem("logs")) || [];
+		const entry = {
+			id: crypto.randomUUID(),  // 產生唯一 ID
+			date: date,
+			content: content,
+			tags: tags
+		};
+
+		logs.push(entry);
+		localStorage.setItem("logs", JSON.stringify(logs));
+		filterEntries();
+	}
+	function editEntry(entryId, newValue, field) {
+		let logs = JSON.parse(localStorage.getItem("logs")) || [];
+		const logIndex = logs.findIndex(log => log.id === entryId);
+		
+		if (logIndex !== -1) {
+			logs[logIndex][field] = newValue;
+			localStorage.setItem("logs", JSON.stringify(logs));
+		}
+	}
+
+    /*function filterEntries() {
+        const searchDate = document.getElementById("searchDate").value;
+        const searchTag = document.getElementById("searchTag").value.trim();
+        const logs = JSON.parse(localStorage.getItem("logs")) || [];
+
+        const filteredLogs = logs.filter(log =>
+            log.date === searchDate && (searchTag === "" || log.tags.includes(searchTag))
+        );
+
+        const table = document.getElementById("logTable");
+        table.innerHTML = filteredLogs.length > 0
+            ? filteredLogs.map((log, index) => `
+                <tr>
+                    <td>${log.date}</td>
+                    <td contenteditable="true" onblur="editEntry(${index}, this.innerText, 'content')">${log.content}</td>
+                    <td contenteditable="true" onblur="editEntry(${index}, this.innerText, 'tags')">${log.tags}</td>
+                    <td><button onclick="deleteEntry(${index})">❌ 刪除</button></td>
+                </tr>
+            `).join('')
+            : '<tr><td colspan="4">📭 無日誌紀錄</td></tr>';
+    }*/
+	
+	function filterEntries() {
+		const searchDate = document.getElementById("searchDate").value;
+		const searchTag = document.getElementById("searchTag").value.trim();
+		const logs = JSON.parse(localStorage.getItem("logs")) || [];
+
+		const filteredLogs = logs.filter(log =>
+			log.date === searchDate && (searchTag === "" || log.tags.includes(searchTag))
+		);
+
+		const table = document.getElementById("logTable");
+		table.innerHTML = filteredLogs.length > 0
+			? filteredLogs.map(log => `
+				<tr>
+					<td>${log.date}</td>
+					<td contenteditable="true" onblur="editEntry('${log.id}', this.innerText, 'content')">${log.content}</td>
+					<td contenteditable="true" onblur="editEntry('${log.id}', this.innerText, 'tags')">${log.tags}</td>
+					<td><button onclick="deleteEntry('${log.id}')">❌ 刪除</button></td>
+				</tr>
+			`).join('')
+			: '<tr><td colspan="4">📭 無日誌紀錄</td></tr>';
+	}
+
+    function generateWeeklyReport() {
+		const logs = JSON.parse(localStorage.getItem("logs")) || [];
+		const startDate = new Date(document.getElementById("startDate").value);
+		const endDate = new Date(document.getElementById("endDate").value);
+
+		if (isNaN(startDate) || isNaN(endDate)) {
+			return alert("請選擇有效的日期範圍！");
+		}
+
+		endDate.setHours(23, 59, 59, 999); // 確保包含整天的紀錄
+
+		const filteredLogs = logs.filter(log => {
+			const logDate = new Date(log.date);
+			return logDate >= startDate && logDate <= endDate;
+		});
+
+		let reportContent = `<h4>📅 ${startDate.toDateString()} ~ ${endDate.toDateString()} 週報</h4><ul>`;
+
+		if (filteredLogs.length === 0) {
+			reportContent += "<li>📭 無日誌紀錄</li>";
+		} else {
+			filteredLogs.forEach(log => {
+				reportContent += `<li>📅 <strong>${log.date}</strong><br>
+								  📝 ${log.content}<br>
+								  🏷️ <em>${log.tags}</em></li><hr>`;
+			});
+		}
+
+		reportContent += "</ul>";
+		document.getElementById("weeklyReport").innerHTML = reportContent;
+		document.getElementById("weeklyReport").style.display = "block";
+	}
+
+	
+	function closeWeeklyReport() {
+		document.getElementById("weeklyReport").style.display = "none";
+	}
+
+    /*function deleteEntry(index) {
+		let logs = JSON.parse(localStorage.getItem("logs")) || [];
+		logs.splice(index, 1);
+		localStorage.setItem("logs", JSON.stringify(logs));
+		filterEntries();
+	}*/
+	
+	function deleteEntry(entryId) {
+		let logs = JSON.parse(localStorage.getItem("logs")) || [];
+
+		// 過濾掉要刪除的 ID，保留其他資料
+		logs = logs.filter(log => log.id !== entryId);
+
+		// 更新 localStorage 並重新載入資料
+		localStorage.setItem("logs", JSON.stringify(logs));
+		filterEntries();
+	}
+
+	
+	function toggleWeeklyReport() {
+		const reportDiv = document.getElementById("weeklyReport");
+		if (reportDiv.style.display === "none") {
+			generateWeeklyReport();
+			reportDiv.style.display = "block";
+		} else {
+			reportDiv.style.display = "none";
+		}
+	}
+	
+
+
+
+	function exportJSON() {
+		const logs = JSON.parse(localStorage.getItem("logs")) || [];
+		if (logs.length === 0) return alert("目前沒有可匯出的資料！");
+
+		const blob = new Blob([JSON.stringify(logs, null, 2)], { type: "application/json" });
+		const a = document.createElement("a");
+		a.href = URL.createObjectURL(blob);
+		a.download = "工作日誌.json";
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+	}
+
+	function importJSON() {
+		document.getElementById("fileInput").click();
+	}
+	function handleFileImport(event) {
+		const file = event.target.files[0];
+		if (!file) return;
+
+		const reader = new FileReader();
+		reader.onload = function(e) {
+			try {
+				const importedData = JSON.parse(e.target.result);
+				localStorage.setItem("logs", JSON.stringify(importedData));
+				filterEntries();
+				alert("資料成功載入！");
+			} catch (error) {
+				alert("載入失敗，請確認檔案格式正確！");
+			}
+		};
+		reader.readAsText(file);
+	}
+	
+	function exportCSV() {
+		const logs = JSON.parse(localStorage.getItem("logs")) || [];
+		if (logs.length === 0) return alert("目前沒有可匯出的資料！");
+
+		let csvContent = "日期,工作內容,標籤\n" + logs.map(log => `"${log.date}","${log.content}","${log.tags}"`).join("\n");
+
+		const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+		const a = document.createElement("a");
+		a.href = URL.createObjectURL(blob);
+		a.download = "工作日誌.csv";
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+	}
+    setDateToToday();
+    filterEntries();
+	
+</script>
+
+</body>
+</html>
